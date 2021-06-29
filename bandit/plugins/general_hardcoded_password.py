@@ -6,7 +6,6 @@
 
 import ast
 import re
-import sys
 
 import bandit
 from bandit.core import test_properties as test
@@ -80,6 +79,15 @@ def hardcoded_password_string(context):
         for targ in node._bandit_parent.targets:
             if isinstance(targ, ast.Name) and RE_CANDIDATES.search(targ.id):
                 return _report(node.s)
+
+    elif (isinstance(node._bandit_parent, ast.Subscript)
+          and RE_CANDIDATES.search(node.s)):
+        # Py39+: looks for "dict[candidate]='some_string'"
+        # subscript -> index -> string
+        assign = node._bandit_parent._bandit_parent
+        if isinstance(assign, ast.Assign) and isinstance(assign.value,
+                                                         ast.Str):
+            return _report(assign.value.s)
 
     elif (isinstance(node._bandit_parent, ast.Index)
           and RE_CANDIDATES.search(node.s)):
@@ -205,10 +213,6 @@ def hardcoded_password_default(context):
 
     # go through all (param, value)s and look for candidates
     for key, val in zip(context.node.args.args, defs):
-        py3_is_arg = True
-        if sys.version_info.major > 2:
-            py3_is_arg = isinstance(key, ast.arg)
-        if isinstance(key, ast.Name) or py3_is_arg:
-            check = key.arg if sys.version_info.major > 2 else key.id  # Py3
-            if isinstance(val, ast.Str) and RE_CANDIDATES.search(check):
+        if isinstance(key, (ast.Name, ast.arg)):
+            if isinstance(val, ast.Str) and RE_CANDIDATES.search(key.arg):
                 return _report(val.s)

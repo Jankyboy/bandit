@@ -3,6 +3,9 @@
 # Copyright 2014 Hewlett-Packard Development Company, L.P.
 #
 # SPDX-License-Identifier: Apache-2.0
+"""Bandit is a tool designed to find common security issues in Python code."""
+
+
 import argparse
 import fnmatch
 import logging
@@ -21,11 +24,11 @@ LOG = logging.getLogger()
 
 
 def _init_logger(log_level=logging.INFO, log_format=None):
-    '''Initialize the logger
+    """Initialize the logger.
 
     :param debug: Whether to enable debug mode
     :return: An instantiated logging instance
-    '''
+    """
     LOG.handlers = []
 
     if not log_format:
@@ -120,6 +123,7 @@ def _log_info(args, profile):
 
 
 def main():
+    """Bandit CLI."""
     # bring our logging stuff up as early as possible
     debug = (logging.DEBUG if '-d' in sys.argv or '--debug' in sys.argv else
              logging.INFO)
@@ -176,15 +180,33 @@ def main():
         action='store', default=None, type=str,
         help='comma-separated list of test IDs to skip'
     )
-    parser.add_argument(
+    severity_group = parser.add_mutually_exclusive_group(required=False)
+    severity_group.add_argument(
         '-l', '--level', dest='severity', action='count',
         default=1, help='report only issues of a given severity level or '
                         'higher (-l for LOW, -ll for MEDIUM, -lll for HIGH)'
     )
-    parser.add_argument(
+    severity_group.add_argument(
+        '--severity-level', dest='severity_string', action='store',
+        help='report only issues of a given severity level or higher.'
+             ' "all" and "low" are likely to produce the same results, but it'
+             ' is possible for rules to be undefined which will'
+             ' not be listed in "low".',
+        choices=['all', 'low', 'medium', 'high']
+    )
+    confidence_group = parser.add_mutually_exclusive_group(required=False)
+    confidence_group.add_argument(
         '-i', '--confidence', dest='confidence', action='count',
         default=1, help='report only issues of a given confidence level or '
                         'higher (-i for LOW, -ii for MEDIUM, -iii for HIGH)'
+    )
+    confidence_group.add_argument(
+        '--confidence-level', dest='confidence_string', action='store',
+        help='report only issues of a given confidence level or higher.'
+             ' "all" and "low" are likely to produce the same results, but it'
+             ' is possible for rules to be undefined which will'
+             ' not be listed in "low".',
+        choices=["all", "low", "medium", "high"]
     )
     output_format = 'screen' if sys.stdout.isatty() else 'txt'
     parser.add_argument(
@@ -201,7 +223,7 @@ def main():
     )
     parser.add_argument(
         '-o', '--output', dest='output_file', action='store', nargs='?',
-        type=argparse.FileType('w'), default=sys.stdout,
+        type=argparse.FileType('w', encoding='utf-8'), default=sys.stdout,
         help='write report to filename'
     )
     group = parser.add_mutually_exclusive_group(required=False)
@@ -268,7 +290,7 @@ def main():
 
     Available tags:
 
-        {abspath}, {relpath}, {line},  {test_id},
+        {abspath}, {relpath}, {line}, {col}, {test_id},
         {severity}, {msg}, {confidence}, {range}
 
     Example usage:
@@ -297,6 +319,29 @@ def main():
     # Check if `--msg-template` is not present without custom formatter
     if args.output_format != 'custom' and args.msg_template is not None:
         parser.error("--msg-template can only be used with --format=custom")
+
+    # Check if confidence or severity level have been specified with strings
+    if args.severity_string is not None:
+        if args.severity_string == "all":
+            args.severity = 1
+        elif args.severity_string == "low":
+            args.severity = 2
+        elif args.severity_string == "medium":
+            args.severity = 3
+        elif args.severity_string == "high":
+            args.severity = 4
+        # Other strings will be blocked by argparse
+
+    if args.confidence_string is not None:
+        if args.confidence_string == "all":
+            args.confidence = 1
+        elif args.confidence_string == "low":
+            args.confidence = 2
+        elif args.confidence_string == "medium":
+            args.confidence = 3
+        elif args.confidence_string == "high":
+            args.confidence = 4
+        # Other strings will be blocked by argparse
 
     try:
         b_conf = b_config.BanditConfig(config_file=args.config_file)
